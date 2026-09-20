@@ -16,6 +16,9 @@ import {
 } from '@/components/ui/dialog'
 import { Sparkles, Send, Users, ExternalLink, Loader2, RefreshCw } from 'lucide-react'
 
+// App base path (must match next.config.js basePath). Client fetches include it.
+const BASE_PATH = '/daily-debug'
+
 // ---- Configure your post-submit redirect links here ---------------------
 const REDIRECT_LINKS = [
   { url: 'https://google.com', label: 'Continue to Google \u2192' },
@@ -63,7 +66,7 @@ export default function App() {
 
   const loadDaily = useCallback(async () => {
     try {
-      const r = await fetch('/api/daily-question', { cache: 'no-store' })
+      const r = await fetch(`${BASE_PATH}/api/daily-question`, { cache: 'no-store' })
       const b = await r.json()
       if (b.needsSetup) { setNeedsSetup(true); return }
       setDaily(b.dailyQuestion || null)
@@ -74,7 +77,7 @@ export default function App() {
 
   const loadFeed = useCallback(async () => {
     try {
-      const r = await fetch('/api/feed?limit=200', { cache: 'no-store' })
+      const r = await fetch(`${BASE_PATH}/api/feed?limit=200`, { cache: 'no-store' })
       const b = await r.json()
       if (b.needsSetup) { setNeedsSetup(true); return }
       setAnswers(b.answers || [])
@@ -98,7 +101,7 @@ export default function App() {
     if (!text.trim()) { setError('Please write an answer first.'); return }
     setBusy(true)
     try {
-      const r = await fetch('/api/answers', {
+      const r = await fetch(`${BASE_PATH}/api/answers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

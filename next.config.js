@@ -1,4 +1,8 @@
 const nextConfig = {
+  // Serve the whole app (pages, /_next assets, and /api) under /daily-debug so a
+  // single Cloudflare route "yourdomain.com/daily-debug*" catches every request.
+  // To change the path, update this AND BASE_PATH in app/page.js.
+  basePath: '/daily-debug',
   output: 'standalone',
   images: {
     unoptimized: true,
