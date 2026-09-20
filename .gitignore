@@ -31,8 +31,16 @@ dist/
 dist
 
 # Environment files (comprehensive coverage)
+.env
+.env.local
+.env.*.local
+.dev.vars
 *token.json*
 *credentials.json*
+
+# Cloudflare / OpenNext build output
+.open-next/
+.wrangler/
 
 # Logs and debug files
 npm-debug.log*
