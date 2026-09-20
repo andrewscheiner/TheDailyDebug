@@ -43,8 +43,8 @@ function timeAgo(iso) {
 }
 
 const AVATAR_COLORS = [
-  'bg-rose-500','bg-orange-500','bg-amber-500','bg-emerald-500',
-  'bg-teal-500','bg-sky-500','bg-indigo-500','bg-violet-500','bg-fuchsia-500',
+  'bg-[#0e6e70]','bg-[#0b5a5c]','bg-[#127d80]','bg-[#0a8f92]',
+  'bg-[#f5a623]','bg-[#e0951a]','bg-[#d98a12]',
 ]
 function colorFor(str) {
   let h = 0
@@ -125,15 +125,17 @@ export default function App() {
   const prompt = daily?.questions?.prompt
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-indigo-50 via-white to-white">
+    <div className="min-h-screen bg-gradient-to-b from-teal-50 via-white to-white">
       {/* Header */}
       <header className="border-b bg-white/70 backdrop-blur sticky top-0 z-10">
         <div className="container flex items-center justify-between py-4">
           <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white">
-              <Sparkles className="h-5 w-5" />
-            </div>
-            <span className="text-lg font-semibold tracking-tight">Daily Warmup</span>
+            <img
+              src={`${BASE_PATH}/logo.png`}
+              alt="The Daily Debug logo"
+              className="h-9 w-9 object-contain"
+            />
+            <span className="text-lg font-semibold tracking-tight text-[#0b5a5c]">The Daily Debug</span>
           </div>
           <Badge variant="secondary" className="gap-1">
             <Users className="h-3.5 w-3.5" /> {answers.length} answered today
@@ -155,9 +157,9 @@ export default function App() {
         )}
 
         {/* Question card */}
-        <Card className="overflow-hidden border-0 shadow-lg shadow-indigo-100">
-          <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-2">
-            <span className="text-xs font-medium uppercase tracking-wider text-indigo-100">
+        <Card className="overflow-hidden border-0 shadow-lg shadow-teal-100">
+          <div className="bg-gradient-to-r from-[#0e6e70] to-[#0b5a5c] px-6 py-2">
+            <span className="text-xs font-medium uppercase tracking-wider text-amber-300">
               Today’s Question
             </span>
           </div>
@@ -247,7 +249,7 @@ export default function App() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-indigo-600" /> Thanks for your answer!
+              <Sparkles className="h-5 w-5 text-[#0e6e70]" /> Thanks for your answer!
             </DialogTitle>
             <DialogDescription>
               Your response has been posted to the wall. Here’s where to go next:
