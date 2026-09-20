@@ -1,7 +1,7 @@
 import './globals.css'
 
 export const metadata = {
-  title: 'Daily Warmup',
+  title: 'The Daily Debug',
   description: 'Answer the daily warmup question and see what everyone else said.',
 }
 

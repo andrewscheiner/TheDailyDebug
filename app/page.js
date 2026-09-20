@@ -133,7 +133,7 @@ export default function App() {
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white">
               <Sparkles className="h-5 w-5" />
             </div>
-            <span className="text-lg font-semibold tracking-tight">Daily Warmup</span>
+            <span className="text-lg font-semibold tracking-tight">The Daily Debug</span>
           </div>
           <Badge variant="secondary" className="gap-1">
             <Users className="h-3.5 w-3.5" /> {answers.length} answered today
