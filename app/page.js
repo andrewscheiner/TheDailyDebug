@@ -130,9 +130,11 @@ export default function App() {
       <header className="border-b bg-white/70 backdrop-blur sticky top-0 z-10">
         <div className="container flex items-center justify-between py-4">
           <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white">
-              <Sparkles className="h-5 w-5" />
-            </div>
+            <img
+              src={`${BASE_PATH}/logo.png`}
+              alt="The Daily Debug logo"
+              className="h-9 w-9 object-contain"
+            />
             <span className="text-lg font-semibold tracking-tight">The Daily Debug</span>
           </div>
           <Badge variant="secondary" className="gap-1">
