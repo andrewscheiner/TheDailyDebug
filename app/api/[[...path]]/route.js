@@ -6,6 +6,13 @@ export const dynamic = 'force-dynamic'
 const json = (body, status = 200) =>
   NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } })
 
+// Extract the API sub-path regardless of any basePath prefix (e.g. /daily-debug).
+function getApiPath(request) {
+  const p = new URL(request.url).pathname
+  const i = p.indexOf('/api')
+  return (i >= 0 ? p.slice(i + 4) : p).replace(/^\/+/, '').replace(/\/+$/, '')
+}
+
 // ---- 100 sample "do now" warmup questions -------------------------------
 const QUESTIONS = [
   'What is your favorite ice cream flavor?',
@@ -169,7 +176,7 @@ async function getOrCreateDaily(db) {
 }
 
 export async function GET(request) {
-  const path = new URL(request.url).pathname.replace(/^\/api\/?/, '').replace(/\/$/, '')
+  const path = getApiPath(request)
   let db
   try {
     db = supabaseAdmin()
@@ -213,7 +220,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const path = new URL(request.url).pathname.replace(/^\/api\/?/, '').replace(/\/$/, '')
+  const path = getApiPath(request)
   let db
   try {
     db = supabaseAdmin()
