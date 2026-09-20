@@ -142,10 +142,10 @@ export default function App() {
         {needsSetup && (
           <Card className="border-amber-300 bg-amber-50">
             <CardHeader>
-              <CardTitle className="text-amber-900">Almost there \u2014 finish the database setup</CardTitle>
+              <CardTitle className="text-amber-900">Almost there — finish the database setup</CardTitle>
             </CardHeader>
             <CardContent className="text-amber-900/90 text-sm">
-              Your Supabase tables haven\u2019t been created yet. Run the setup SQL provided
+              Your Supabase tables haven’t been created yet. Run the setup SQL provided
               in the Supabase SQL Editor, then refresh this page.
             </CardContent>
           </Card>
@@ -155,13 +155,13 @@ export default function App() {
         <Card className="overflow-hidden border-0 shadow-lg shadow-indigo-100">
           <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-2">
             <span className="text-xs font-medium uppercase tracking-wider text-indigo-100">
-              Today\u2019s Question
+              Today’s Question
             </span>
           </div>
           <CardContent className="pt-6">
             {loading ? (
               <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Loading today\u2019s question\u2026
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading today’s question…
               </div>
             ) : (
               <h1 className="text-2xl md:text-3xl font-bold leading-snug text-slate-900">
@@ -182,13 +182,13 @@ export default function App() {
                 value={text}
                 maxLength={2000}
                 onChange={(e) => setText(e.target.value)}
-                placeholder="Type your answer here\u2026"
+                placeholder="Type your answer here…"
                 rows={3}
               />
               {error && <p className="text-sm text-rose-600">{error}</p>}
               <Button type="submit" disabled={busy || !daily} className="w-full sm:w-auto">
                 {busy ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Posting\u2026</>
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Posting…</>
                 ) : (
                   <><Send className="mr-2 h-4 w-4" /> Post my answer</>
                 )}
@@ -200,7 +200,7 @@ export default function App() {
         {/* Live feed */}
         <div>
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-900">Everyone\u2019s answers</h2>
+            <h2 className="text-lg font-semibold text-slate-900">Everyone’s answers</h2>
             <button
               onClick={loadFeed}
               className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-slate-900"
@@ -213,7 +213,7 @@ export default function App() {
             {answers.length === 0 && !loading && (
               <Card className="border-dashed">
                 <CardContent className="py-10 text-center text-muted-foreground">
-                  No answers yet \u2014 be the first to share yours! \ud83c\udf1f
+                  No answers yet — be the first to share yours! 🌟
                 </CardContent>
               </Card>
             )}
@@ -247,7 +247,7 @@ export default function App() {
               <Sparkles className="h-5 w-5 text-indigo-600" /> Thanks for your answer!
             </DialogTitle>
             <DialogDescription>
-              Your response has been posted to the wall. Here\u2019s where to go next:
+              Your response has been posted to the wall. Here’s where to go next:
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 py-2">

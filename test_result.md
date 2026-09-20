@@ -101,3 +101,110 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: |
+  Educational "daily warmup" page. Anyone can visit, answer today's question, and all answers
+  post to a public feed/wall. 100+ questions, ONE randomly chosen per day (same for everyone,
+  rotates at UTC midnight). Optional nickname with a profanity/appropriateness filter. After
+  submitting, a popup redirects the user to external URLs (google.com placeholder for now).
+  Backend uses Supabase (Postgres); all access is server-mediated via the secret key.
+
+backend:
+  - task: "GET /api/daily-question - auto-seed 100 questions and select/persist today's question"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "On first call, seeds 100 questions if table empty, then picks a random question for today (current_date UTC) and stores it in daily_questions. Subsequent calls same day return the SAME question. Returns {dailyQuestion:{question_id, questions:{id,prompt}}}. Verified visually: question loads on page."
+        -working: true
+        -agent: "testing"
+        -comment: "✅ PASSED - Called endpoint twice, both returned same question_id (98) with proper structure {dailyQuestion:{question_id, questions:{id,prompt}}}. Stability verified - question remains consistent across multiple calls on same day."
+  - task: "GET /api/feed - list latest answers desc"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Returns {answers:[...]} ordered by created_at desc, limit param (default 100, max 200)."
+        -working: true
+        -agent: "testing"
+        -comment: "✅ PASSED - Endpoint returns answers in descending order by created_at. Tested with limit=200. Verified that newly posted answers appear at the top of the feed as expected."
+  - task: "POST /api/answers - validate, profanity-check name, verify today's question, insert"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Validates answer (1-2000 chars), name (<=80, defaults 'Anonymous'), rejects inappropriate display names (400 with field:name), rejects questionId that is not today's question (400), honeypot 'website' field returns ok silently. Inserts and returns the created row (201)."
+        -working: true
+        -agent: "testing"
+        -comment: "✅ PASSED - All validation scenarios working correctly: (1) Valid submission returns 201 with answer object, (2) Empty/whitespace answer rejected with 400, (3) Answer >2000 chars rejected with 400, (4) Missing/non-integer questionId rejected with 400, (5) Wrong questionId (not today's) rejected with 400 and appropriate error message, (6) Profanity filter working - inappropriate displayName 'shithead' rejected with 400, clean name 'Sam' accepted with 201, (7) Honeypot field 'website' returns 200 but does NOT create visible answer in feed. All test cases passed."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 2
+  run_ui: false
+
+test_plan:
+  current_focus: []
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    -agent: "main"
+    -message: |
+      Supabase tables are created and the app is live. Please test the three backend endpoints via
+      the public base URL (use /api prefix). Key scenarios:
+      1) GET /api/daily-question twice -> must return a non-null dailyQuestion with the SAME question_id both times (stable for the day). Capture that question_id for the next tests.
+      2) POST /api/answers valid -> {questionId: <today's id>, answer:"Test answer", displayName:"Alex"} -> expect 201 with the created answer row.
+      3) GET /api/feed -> the just-posted answer should appear at the top.
+      4) Validation: empty answer -> 400; answer > 2000 chars -> 400; missing/invalid questionId -> 400.
+      5) Wrong question: POST with a questionId that is NOT today's -> expect 400 "not today's question".
+      6) Profanity filter: POST with displayName like "shithead" (inappropriate) but a valid answer -> expect 400 with an appropriate-name error. A clean name like "Sam" must pass.
+      7) Honeypot: POST including "website":"spam" -> should return ok without creating a visible answer.
+      Do NOT hardcode URLs; use the configured base URL + /api.
+    -agent: "testing"
+    -message: |
+      ✅ ALL BACKEND TESTS PASSED (12/12)
+      
+      Comprehensive testing completed for all three endpoints:
+      
+      1. GET /api/daily-question - ✅ Working
+         - Returns consistent question_id across multiple calls (question_id: 98)
+         - Proper structure with nested questions object containing prompt
+         
+      2. GET /api/feed - ✅ Working
+         - Returns answers in descending order by created_at
+         - Limit parameter working correctly (tested with limit=200)
+         - New answers appear at top of feed
+         
+      3. POST /api/answers - ✅ Working
+         - Valid submissions return 201 with complete answer object
+         - All validation rules working:
+           * Empty/whitespace answers rejected (400)
+           * Answers >2000 chars rejected (400)
+           * Missing/invalid questionId rejected (400)
+           * Wrong questionId (not today's) rejected with clear error (400)
+         - Profanity filter working correctly:
+           * Inappropriate names like "shithead" rejected (400)
+           * Clean names like "Sam" accepted (201)
+         - Honeypot field working perfectly:
+           * Returns 200 (appears successful to bots)
+           * Does NOT create visible answer in feed
+      
+      No critical issues found. All backend functionality is working as expected.
