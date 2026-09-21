@@ -21,7 +21,9 @@ const BASE_PATH = '/daily-debug'
 
 // ---- Configure your post-submit redirect links here ---------------------
 const REDIRECT_LINKS = [
-  { url: 'https://google.com', label: 'Continue to Google \u2192' },
+  { url: 'https://classroom.google.com/', label: 'Back to Google Classroom \u2192' },
+  { url: 'https://scratch.mit.edu/', label: 'Continue to Scratch \u2192' },
+  { url: 'https://codehs.com/login', label: 'Continue to CodeHS \u2192' },
 ]
 // -------------------------------------------------------------------------
 
