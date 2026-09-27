@@ -163,8 +163,14 @@ async function getOrCreateDaily(db) {
   if (!qs || qs.length === 0) return null
   const pick = qs[Math.floor(Math.random() * qs.length)].id
 
-  // Insert today's selection; ignore duplicate if another request beat us to it.
-  await db.from('daily_questions').insert({ selected_on: today, question_id: pick })
+  // Insert today's selection; if OUR insert wins the race (no error), this is the
+  // first request of a new day -> clear all previous answers so the wall resets daily.
+  const { error: insErr } = await db
+    .from('daily_questions')
+    .insert({ selected_on: today, question_id: pick })
+  if (!insErr) {
+    await db.from('answers').delete().neq('id', 0)
+  }
 
   const { data: d2, error: e2 } = await db
     .from('daily_questions')
