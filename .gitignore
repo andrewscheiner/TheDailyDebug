@@ -94,3 +94,4 @@ node_modules/@next/swc-linux-arm64-gnu/next-swc.linux-arm64-gnu.node
 credentials.json
 *.key
 .credentials
+node_modules/@cloudflare/workerd-linux-arm64/bin/workerd
