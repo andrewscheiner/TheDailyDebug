@@ -298,6 +298,18 @@ export async function DELETE(request) {
   const id = Number(body?.id)
 
   if (password !== ADMIN) return json({ error: 'Incorrect admin password.' }, 401)
+
+  // Bulk clear: delete ALL answers on demand.
+  if (body?.all === true) {
+    try {
+      const { error } = await db.from('answers').delete().neq('id', 0)
+      if (error) throw error
+      return json({ ok: true, cleared: true })
+    } catch (error) {
+      return json({ error: error.message }, 500)
+    }
+  }
+
   if (!Number.isInteger(id)) return json({ error: 'Invalid answer id.' }, 400)
 
   try {

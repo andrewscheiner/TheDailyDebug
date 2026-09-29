@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend API Test Suite for Daily Debug App
-Tests the admin-only DELETE endpoint for answers
+Backend API Test Suite for The Daily Debug
+Tests the new BULK CLEAR capability on DELETE /api/answers endpoint
 """
 
 import requests
@@ -12,308 +12,361 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv('/app/.env')
 
-BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL')
-ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
+BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://question-of-day-3.preview.emergentagent.com')
+ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', '!shine68PIECE')
+BASE_PATH = '/daily-debug'
 
-# CRITICAL: App uses basePath "/daily-debug"
-API_BASE = f"{BASE_URL}/daily-debug/api"
+# API endpoints
+API_BASE = f"{BASE_URL}{BASE_PATH}/api"
+DAILY_QUESTION_URL = f"{API_BASE}/daily-question"
+ANSWERS_URL = f"{API_BASE}/answers"
+FEED_URL = f"{API_BASE}/feed"
 
-print(f"🔧 Testing against: {API_BASE}")
-print(f"🔑 Admin password loaded: {'✓' if ADMIN_PASSWORD else '✗'}")
+print("=" * 80)
+print("BACKEND API TEST SUITE - BULK CLEAR CAPABILITY")
+print("=" * 80)
+print(f"Base URL: {BASE_URL}")
+print(f"Base Path: {BASE_PATH}")
+print(f"API Base: {API_BASE}")
+print(f"Admin Password: {'*' * len(ADMIN_PASSWORD)}")
 print("=" * 80)
 
-def test_delete_endpoint():
-    """Test the admin-only DELETE /api/answers endpoint"""
+def test_setup():
+    """Setup: Get today's question and post 3 test answers"""
+    print("\n[SETUP] Getting today's question and posting 3 test answers...")
     
-    # ========================================================================
-    # SETUP: Get today's question and create a test answer
-    # ========================================================================
-    print("\n📋 SETUP: Creating test answer for deletion...")
-    print("-" * 80)
-    
+    # Get today's question
     try:
-        # Step 1: Get today's question
-        print("1️⃣  GET /daily-debug/api/daily-question")
-        resp = requests.get(f"{API_BASE}/daily-question", timeout=10)
-        print(f"   Status: {resp.status_code}")
+        response = requests.get(DAILY_QUESTION_URL)
+        print(f"GET {DAILY_QUESTION_URL}")
+        print(f"Status: {response.status_code}")
         
-        if resp.status_code != 200:
-            print(f"   ❌ FAILED: Expected 200, got {resp.status_code}")
-            print(f"   Response: {resp.text}")
-            return False
+        if response.status_code != 200:
+            print(f"❌ SETUP FAILED: Expected 200, got {response.status_code}")
+            print(f"Response: {response.text}")
+            return None
         
-        data = resp.json()
+        data = response.json()
         question_id = data.get('dailyQuestion', {}).get('question_id')
-        print(f"   ✅ Got question_id: {question_id}")
+        question_prompt = data.get('dailyQuestion', {}).get('questions', {}).get('prompt')
         
         if not question_id:
-            print("   ❌ FAILED: No question_id in response")
-            return False
+            print(f"❌ SETUP FAILED: No question_id in response")
+            print(f"Response: {json.dumps(data, indent=2)}")
+            return None
         
-        # Step 2: POST a test answer
-        print("\n2️⃣  POST /daily-debug/api/answers (create test answer)")
-        test_payload = {
-            "questionId": question_id,
-            "answer": "Delete me test - this answer should be removed by admin",
-            "displayName": "TempTestUser"
-        }
-        resp = requests.post(f"{API_BASE}/answers", json=test_payload, timeout=10)
-        print(f"   Status: {resp.status_code}")
-        
-        if resp.status_code != 201:
-            print(f"   ❌ FAILED: Expected 201, got {resp.status_code}")
-            print(f"   Response: {resp.text}")
-            return False
-        
-        answer_data = resp.json()
-        test_answer_id = answer_data.get('answer', {}).get('id')
-        print(f"   ✅ Created answer with id: {test_answer_id}")
-        print(f"   Answer: {answer_data}")
-        
-        if not test_answer_id:
-            print("   ❌ FAILED: No answer id in response")
-            return False
+        print(f"✅ Got today's question: ID={question_id}, Prompt='{question_prompt}'")
         
     except Exception as e:
-        print(f"❌ SETUP FAILED: {str(e)}")
-        return False
+        print(f"❌ SETUP FAILED: Error getting daily question: {e}")
+        return None
     
-    # ========================================================================
-    # TEST 1: DELETE SUCCESS - Delete with correct password
-    # ========================================================================
+    # Post 3 test answers
+    posted_ids = []
+    for i in range(1, 4):
+        try:
+            payload = {
+                "questionId": question_id,
+                "answer": f"Bulk clear test answer {i} - This is a test answer for testing the bulk clear functionality.",
+                "displayName": f"TestUser{i}"
+            }
+            response = requests.post(ANSWERS_URL, json=payload)
+            print(f"\nPOST {ANSWERS_URL}")
+            print(f"Payload: {json.dumps(payload, indent=2)}")
+            print(f"Status: {response.status_code}")
+            
+            if response.status_code != 201:
+                print(f"❌ SETUP WARNING: Expected 201, got {response.status_code}")
+                print(f"Response: {response.text}")
+            else:
+                data = response.json()
+                answer_id = data.get('answer', {}).get('id')
+                posted_ids.append(answer_id)
+                print(f"✅ Posted answer {i}: ID={answer_id}")
+                
+        except Exception as e:
+            print(f"❌ SETUP WARNING: Error posting answer {i}: {e}")
+    
+    print(f"\n✅ SETUP COMPLETE: Posted {len(posted_ids)} answers")
+    return question_id
+
+def test_bulk_clear_success():
+    """Test 1: Bulk clear with correct password should clear all answers"""
     print("\n" + "=" * 80)
-    print("🧪 TEST 1: DELETE with correct admin password")
-    print("-" * 80)
+    print("[TEST 1] BULK CLEAR SUCCESS - Correct Password")
+    print("=" * 80)
     
     try:
-        delete_payload = {
-            "id": test_answer_id,
+        payload = {
+            "all": True,
             "password": ADMIN_PASSWORD
         }
-        print(f"DELETE /daily-debug/api/answers")
-        print(f"Body: {{'id': {test_answer_id}, 'password': '***'}}")
         
-        resp = requests.delete(f"{API_BASE}/answers", json=delete_payload, timeout=10)
-        print(f"Status: {resp.status_code}")
-        print(f"Response: {resp.text}")
+        print(f"\nDELETE {ANSWERS_URL}")
+        print(f"Payload: {json.dumps({'all': True, 'password': '***'}, indent=2)}")
         
-        if resp.status_code != 200:
-            print(f"❌ FAILED: Expected 200, got {resp.status_code}")
+        response = requests.delete(ANSWERS_URL, json=payload)
+        print(f"Status: {response.status_code}")
+        print(f"Response: {response.text}")
+        
+        if response.status_code != 200:
+            print(f"❌ TEST 1 FAILED: Expected 200, got {response.status_code}")
             return False
         
-        result = resp.json()
-        if not result.get('ok') or result.get('id') != test_answer_id:
-            print(f"❌ FAILED: Expected {{ok: true, id: {test_answer_id}}}")
+        data = response.json()
+        if not data.get('ok') or not data.get('cleared'):
+            print(f"❌ TEST 1 FAILED: Expected {{ok: true, cleared: true}}, got {json.dumps(data)}")
             return False
         
-        print("✅ DELETE returned success")
+        print(f"✅ Bulk clear returned correct response: {json.dumps(data)}")
+        
+        # Verify feed is empty
+        print(f"\nVerifying feed is empty...")
+        print(f"GET {FEED_URL}?limit=200")
+        
+        feed_response = requests.get(f"{FEED_URL}?limit=200")
+        print(f"Status: {feed_response.status_code}")
+        
+        if feed_response.status_code != 200:
+            print(f"❌ TEST 1 FAILED: Feed check failed with status {feed_response.status_code}")
+            return False
+        
+        feed_data = feed_response.json()
+        answers = feed_data.get('answers', [])
+        print(f"Feed contains {len(answers)} answers")
+        
+        if len(answers) != 0:
+            print(f"❌ TEST 1 FAILED: Expected empty feed, but found {len(answers)} answers")
+            print(f"Answers: {json.dumps(answers, indent=2)}")
+            return False
+        
+        print(f"✅ Feed is empty as expected")
+        print("\n✅ TEST 1 PASSED: Bulk clear with correct password works correctly")
+        return True
+        
+    except Exception as e:
+        print(f"❌ TEST 1 FAILED: Exception occurred: {e}")
+        return False
+
+def test_bulk_clear_wrong_password(question_id):
+    """Test 2: Bulk clear with wrong password should return 401 and not clear anything"""
+    print("\n" + "=" * 80)
+    print("[TEST 2] BULK CLEAR WRONG PASSWORD - Should Return 401")
+    print("=" * 80)
+    
+    # First, post one answer to have something in the feed
+    try:
+        payload = {
+            "questionId": question_id,
+            "answer": "Test answer for wrong password scenario - should NOT be deleted",
+            "displayName": "PasswordTestUser"
+        }
+        
+        print(f"\nPosting test answer first...")
+        print(f"POST {ANSWERS_URL}")
+        response = requests.post(ANSWERS_URL, json=payload)
+        print(f"Status: {response.status_code}")
+        
+        if response.status_code != 201:
+            print(f"❌ TEST 2 SETUP FAILED: Could not post test answer")
+            return False
+        
+        data = response.json()
+        answer_id = data.get('answer', {}).get('id')
+        print(f"✅ Posted test answer: ID={answer_id}")
+        
+    except Exception as e:
+        print(f"❌ TEST 2 SETUP FAILED: {e}")
+        return False
+    
+    # Now try bulk clear with wrong password
+    try:
+        payload = {
+            "all": True,
+            "password": "wrong-pw"
+        }
+        
+        print(f"\nAttempting bulk clear with wrong password...")
+        print(f"DELETE {ANSWERS_URL}")
+        print(f"Payload: {json.dumps({'all': True, 'password': 'wrong-pw'}, indent=2)}")
+        
+        response = requests.delete(ANSWERS_URL, json=payload)
+        print(f"Status: {response.status_code}")
+        print(f"Response: {response.text}")
+        
+        if response.status_code != 401:
+            print(f"❌ TEST 2 FAILED: Expected 401, got {response.status_code}")
+            return False
+        
+        data = response.json()
+        if 'error' not in data:
+            print(f"❌ TEST 2 FAILED: Expected error message in response")
+            return False
+        
+        print(f"✅ Correctly returned 401 with error: {data.get('error')}")
+        
+        # Verify the answer is still present
+        print(f"\nVerifying answer is still present in feed...")
+        print(f"GET {FEED_URL}?limit=200")
+        
+        feed_response = requests.get(f"{FEED_URL}?limit=200")
+        print(f"Status: {feed_response.status_code}")
+        
+        if feed_response.status_code != 200:
+            print(f"❌ TEST 2 FAILED: Feed check failed")
+            return False
+        
+        feed_data = feed_response.json()
+        answers = feed_data.get('answers', [])
+        print(f"Feed contains {len(answers)} answers")
+        
+        if len(answers) == 0:
+            print(f"❌ TEST 2 FAILED: Answer was deleted despite wrong password!")
+            return False
+        
+        # Check if our specific answer is present
+        found = any(a.get('id') == answer_id for a in answers)
+        if not found:
+            print(f"❌ TEST 2 FAILED: Our test answer (ID={answer_id}) not found in feed")
+            return False
+        
+        print(f"✅ Answer still present in feed (ID={answer_id})")
+        print("\n✅ TEST 2 PASSED: Bulk clear with wrong password correctly rejected")
+        return True
+        
+    except Exception as e:
+        print(f"❌ TEST 2 FAILED: Exception occurred: {e}")
+        return False
+
+def test_regression_single_delete(question_id):
+    """Test 3: Regression - Single delete should still work"""
+    print("\n" + "=" * 80)
+    print("[TEST 3] REGRESSION - Single Delete Still Works")
+    print("=" * 80)
+    
+    # Post a test answer
+    try:
+        payload = {
+            "questionId": question_id,
+            "answer": "Test answer for single delete regression test",
+            "displayName": "RegressionTestUser"
+        }
+        
+        print(f"\nPosting test answer...")
+        print(f"POST {ANSWERS_URL}")
+        response = requests.post(ANSWERS_URL, json=payload)
+        print(f"Status: {response.status_code}")
+        
+        if response.status_code != 201:
+            print(f"❌ TEST 3 SETUP FAILED: Could not post test answer")
+            return False
+        
+        data = response.json()
+        answer_id = data.get('answer', {}).get('id')
+        print(f"✅ Posted test answer: ID={answer_id}")
+        
+    except Exception as e:
+        print(f"❌ TEST 3 SETUP FAILED: {e}")
+        return False
+    
+    # Delete the specific answer
+    try:
+        payload = {
+            "id": answer_id,
+            "password": ADMIN_PASSWORD
+        }
+        
+        print(f"\nDeleting specific answer...")
+        print(f"DELETE {ANSWERS_URL}")
+        print(f"Payload: {json.dumps({'id': answer_id, 'password': '***'}, indent=2)}")
+        
+        response = requests.delete(ANSWERS_URL, json=payload)
+        print(f"Status: {response.status_code}")
+        print(f"Response: {response.text}")
+        
+        if response.status_code != 200:
+            print(f"❌ TEST 3 FAILED: Expected 200, got {response.status_code}")
+            return False
+        
+        data = response.json()
+        if not data.get('ok') or data.get('id') != answer_id:
+            print(f"❌ TEST 3 FAILED: Expected {{ok: true, id: {answer_id}}}, got {json.dumps(data)}")
+            return False
+        
+        print(f"✅ Single delete returned correct response: {json.dumps(data)}")
         
         # Verify the answer is gone from feed
-        print("\n   Verifying answer is removed from feed...")
-        resp = requests.get(f"{API_BASE}/feed?limit=200", timeout=10)
-        if resp.status_code != 200:
-            print(f"   ⚠️  Could not verify feed (status {resp.status_code})")
-        else:
-            feed_data = resp.json()
-            answers = feed_data.get('answers', [])
-            answer_ids = [a.get('id') for a in answers]
-            
-            if test_answer_id in answer_ids:
-                print(f"   ❌ FAILED: Answer {test_answer_id} still exists in feed!")
-                return False
-            else:
-                print(f"   ✅ Confirmed: Answer {test_answer_id} is NOT in feed (deleted successfully)")
+        print(f"\nVerifying answer is removed from feed...")
+        print(f"GET {FEED_URL}?limit=200")
         
-        print("✅ TEST 1 PASSED")
+        feed_response = requests.get(f"{FEED_URL}?limit=200")
+        print(f"Status: {feed_response.status_code}")
         
-    except Exception as e:
-        print(f"❌ TEST 1 FAILED: {str(e)}")
-        return False
-    
-    # ========================================================================
-    # TEST 2: DELETE with WRONG PASSWORD
-    # ========================================================================
-    print("\n" + "=" * 80)
-    print("🧪 TEST 2: DELETE with incorrect admin password")
-    print("-" * 80)
-    
-    try:
-        # First create another test answer
-        print("Creating another test answer...")
-        test_payload = {
-            "questionId": question_id,
-            "answer": "Another test answer for wrong password test",
-            "displayName": "TestUser2"
-        }
-        resp = requests.post(f"{API_BASE}/answers", json=test_payload, timeout=10)
-        if resp.status_code == 201:
-            test_id_2 = resp.json().get('answer', {}).get('id')
-            print(f"Created answer id: {test_id_2}")
-        else:
-            test_id_2 = 999999  # Use a fake ID if creation fails
-            print(f"Using fake id: {test_id_2}")
-        
-        delete_payload = {
-            "id": test_id_2,
-            "password": "totally-wrong-password"
-        }
-        print(f"\nDELETE /daily-debug/api/answers")
-        print(f"Body: {{'id': {test_id_2}, 'password': 'totally-wrong-password'}}")
-        
-        resp = requests.delete(f"{API_BASE}/answers", json=delete_payload, timeout=10)
-        print(f"Status: {resp.status_code}")
-        print(f"Response: {resp.text}")
-        
-        if resp.status_code != 401:
-            print(f"❌ FAILED: Expected 401, got {resp.status_code}")
+        if feed_response.status_code != 200:
+            print(f"❌ TEST 3 FAILED: Feed check failed")
             return False
         
-        result = resp.json()
-        error_msg = result.get('error', '').lower()
-        if 'password' not in error_msg and 'incorrect' not in error_msg:
-            print(f"❌ FAILED: Expected password error message, got: {result.get('error')}")
-            return False
-        
-        print("✅ TEST 2 PASSED - Correctly rejected wrong password with 401")
-        
-    except Exception as e:
-        print(f"❌ TEST 2 FAILED: {str(e)}")
-        return False
-    
-    # ========================================================================
-    # TEST 3: DELETE with INVALID ID (non-integer)
-    # ========================================================================
-    print("\n" + "=" * 80)
-    print("🧪 TEST 3: DELETE with non-integer id")
-    print("-" * 80)
-    
-    try:
-        delete_payload = {
-            "id": "abc",
-            "password": ADMIN_PASSWORD
-        }
-        print(f"DELETE /daily-debug/api/answers")
-        print(f"Body: {{'id': 'abc', 'password': '***'}}")
-        
-        resp = requests.delete(f"{API_BASE}/answers", json=delete_payload, timeout=10)
-        print(f"Status: {resp.status_code}")
-        print(f"Response: {resp.text}")
-        
-        if resp.status_code != 400:
-            print(f"❌ FAILED: Expected 400, got {resp.status_code}")
-            return False
-        
-        result = resp.json()
-        error_msg = result.get('error', '').lower()
-        if 'invalid' not in error_msg and 'id' not in error_msg:
-            print(f"⚠️  Warning: Expected 'invalid id' error message, got: {result.get('error')}")
-        
-        print("✅ TEST 3 PASSED - Correctly rejected invalid id with 400")
-        
-    except Exception as e:
-        print(f"❌ TEST 3 FAILED: {str(e)}")
-        return False
-    
-    # ========================================================================
-    # TEST 4: DELETE with MISSING PASSWORD
-    # ========================================================================
-    print("\n" + "=" * 80)
-    print("🧪 TEST 4: DELETE with missing password")
-    print("-" * 80)
-    
-    try:
-        delete_payload = {
-            "id": 12345
-        }
-        print(f"DELETE /daily-debug/api/answers")
-        print(f"Body: {{'id': 12345}} (no password field)")
-        
-        resp = requests.delete(f"{API_BASE}/answers", json=delete_payload, timeout=10)
-        print(f"Status: {resp.status_code}")
-        print(f"Response: {resp.text}")
-        
-        if resp.status_code != 401:
-            print(f"❌ FAILED: Expected 401, got {resp.status_code}")
-            return False
-        
-        result = resp.json()
-        error_msg = result.get('error', '').lower()
-        if 'password' not in error_msg:
-            print(f"⚠️  Warning: Expected password error message, got: {result.get('error')}")
-        
-        print("✅ TEST 4 PASSED - Correctly rejected missing password with 401")
-        
-    except Exception as e:
-        print(f"❌ TEST 4 FAILED: {str(e)}")
-        return False
-    
-    # ========================================================================
-    # TEST 5: REGRESSION - Verify POST and GET still work
-    # ========================================================================
-    print("\n" + "=" * 80)
-    print("🧪 TEST 5: REGRESSION - Verify POST and GET endpoints still work")
-    print("-" * 80)
-    
-    try:
-        # Test POST
-        print("Testing POST /daily-debug/api/answers...")
-        test_payload = {
-            "questionId": question_id,
-            "answer": "Regression test answer - verifying POST still works",
-            "displayName": "RegressionTester"
-        }
-        resp = requests.post(f"{API_BASE}/answers", json=test_payload, timeout=10)
-        print(f"POST Status: {resp.status_code}")
-        
-        if resp.status_code != 201:
-            print(f"❌ FAILED: POST endpoint broken, expected 201, got {resp.status_code}")
-            print(f"Response: {resp.text}")
-            return False
-        
-        regression_answer = resp.json().get('answer', {})
-        regression_id = regression_answer.get('id')
-        print(f"✅ POST working - Created answer id: {regression_id}")
-        
-        # Test GET feed
-        print("\nTesting GET /daily-debug/api/feed...")
-        resp = requests.get(f"{API_BASE}/feed?limit=50", timeout=10)
-        print(f"GET Status: {resp.status_code}")
-        
-        if resp.status_code != 200:
-            print(f"❌ FAILED: GET feed endpoint broken, expected 200, got {resp.status_code}")
-            print(f"Response: {resp.text}")
-            return False
-        
-        feed_data = resp.json()
+        feed_data = feed_response.json()
         answers = feed_data.get('answers', [])
-        print(f"✅ GET working - Retrieved {len(answers)} answers")
+        print(f"Feed contains {len(answers)} answers")
         
-        # Verify our regression answer is in the feed
-        answer_ids = [a.get('id') for a in answers]
-        if regression_id in answer_ids:
-            print(f"✅ Confirmed: New answer {regression_id} appears in feed")
-        else:
-            print(f"⚠️  Warning: New answer {regression_id} not found in feed (might be pagination)")
+        # Check if our specific answer is NOT present
+        found = any(a.get('id') == answer_id for a in answers)
+        if found:
+            print(f"❌ TEST 3 FAILED: Answer (ID={answer_id}) still present in feed after deletion")
+            return False
         
-        print("✅ TEST 5 PASSED - POST and GET endpoints working correctly")
+        print(f"✅ Answer correctly removed from feed (ID={answer_id})")
+        print("\n✅ TEST 3 PASSED: Single delete regression test passed")
+        return True
         
     except Exception as e:
-        print(f"❌ TEST 5 FAILED: {str(e)}")
+        print(f"❌ TEST 3 FAILED: Exception occurred: {e}")
         return False
-    
-    return True
 
+def main():
+    """Run all tests"""
+    results = {
+        'setup': False,
+        'bulk_clear_success': False,
+        'bulk_clear_wrong_password': False,
+        'regression_single_delete': False
+    }
+    
+    # Setup
+    question_id = test_setup()
+    if question_id:
+        results['setup'] = True
+    else:
+        print("\n❌ SETUP FAILED - Cannot proceed with tests")
+        return results
+    
+    # Test 1: Bulk clear success
+    results['bulk_clear_success'] = test_bulk_clear_success()
+    
+    # Test 2: Bulk clear wrong password
+    results['bulk_clear_wrong_password'] = test_bulk_clear_wrong_password(question_id)
+    
+    # Test 3: Regression - single delete
+    results['regression_single_delete'] = test_regression_single_delete(question_id)
+    
+    # Summary
+    print("\n" + "=" * 80)
+    print("TEST SUMMARY")
+    print("=" * 80)
+    
+    total = len(results)
+    passed = sum(1 for v in results.values() if v)
+    
+    for test_name, passed_flag in results.items():
+        status = "✅ PASSED" if passed_flag else "❌ FAILED"
+        print(f"{test_name}: {status}")
+    
+    print("=" * 80)
+    print(f"TOTAL: {passed}/{total} tests passed")
+    print("=" * 80)
+    
+    return results
 
 if __name__ == "__main__":
-    print("\n" + "=" * 80)
-    print("🚀 STARTING DELETE ENDPOINT TEST SUITE")
-    print("=" * 80)
-    
-    success = test_delete_endpoint()
-    
-    print("\n" + "=" * 80)
-    if success:
-        print("✅ ALL TESTS PASSED")
-    else:
-        print("❌ SOME TESTS FAILED")
-    print("=" * 80)
+    main()

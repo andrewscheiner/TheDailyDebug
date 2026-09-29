@@ -166,6 +166,20 @@ backend:
         -working: true
         -agent: "testing"
         -comment: "✅ PASSED - All DELETE endpoint scenarios tested successfully: (1) DELETE with correct password returns 200 {ok:true, id:261} and answer verified removed from feed, (2) DELETE with wrong password 'totally-wrong-password' correctly returns 401 with 'Incorrect admin password' error, (3) DELETE with non-integer id 'abc' correctly returns 400 with 'Invalid answer id' error, (4) DELETE with missing password correctly returns 401 with password error, (5) REGRESSION verified - POST /api/answers still creates answers (201) and GET /api/feed returns list correctly. All authentication, validation, and deletion logic working as expected."
+  - task: "DELETE /api/answers - bulk clear all answers with admin password"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "NEW FEATURE: Bulk clear capability added to DELETE endpoint. Accepts {all: true, password} in request body. When all=true and password is correct, deletes ALL answers from database and returns 200 {ok:true, cleared:true}. Password validation happens before deletion. Single delete functionality preserved for backward compatibility."
+        -working: true
+        -agent: "testing"
+        -comment: "✅ PASSED - All bulk clear scenarios tested successfully: (1) SETUP: Retrieved today's question (ID=10), posted 3 test answers (IDs: 264, 265, 266) - all returned 201, (2) BULK CLEAR SUCCESS: DELETE with {all:true, password:'!shine68PIECE'} returned HTTP 200 {ok:true, cleared:true}, verified feed is EMPTY (0 answers), (3) BULK CLEAR WRONG PASSWORD: Posted test answer (ID=267), DELETE with {all:true, password:'wrong-pw'} correctly returned HTTP 401 with error 'Incorrect admin password.', verified answer still present in feed (not deleted), (4) REGRESSION SINGLE DELETE: Posted answer (ID=268), DELETE with {id:268, password:'!shine68PIECE'} returned HTTP 200 {ok:true, id:268}, verified answer removed from feed. All 4/4 tests passed. Bulk clear feature working perfectly with proper authentication and no regression to single delete functionality."
 
 metadata:
   created_by: "main_agent"
@@ -182,21 +196,18 @@ test_plan:
 agent_communication:
     -agent: "main"
     -message: |
-      IMPORTANT: The app now uses a Next.js basePath of "/daily-debug", so ALL API routes are served
-      under /daily-debug/api/... (NOT /api/...). Use base URL from /app/.env NEXT_PUBLIC_BASE_URL and
-      hit e.g. {NEXT_PUBLIC_BASE_URL}/daily-debug/api/feed, /daily-debug/api/daily-question,
-      /daily-debug/api/answers. Do not hardcode URLs.
+      Test the NEW bulk-clear capability on the DELETE /api/answers endpoint. Remember basePath:
+      all API routes are under /daily-debug/api/... Base URL = NEXT_PUBLIC_BASE_URL from /app/.env.
+      Admin password is in env var ADMIN_PASSWORD (read from /app/.env).
 
-      New feature to test: DELETE /api/answers (admin-only single-answer deletion). The admin password
-      is stored in the server env var ADMIN_PASSWORD (read it from /app/.env). Scenarios:
-      1) Setup: GET /daily-debug/api/daily-question to get today's question_id, then POST
-         /daily-debug/api/answers to create a test answer; capture its returned id.
-      2) DELETE /daily-debug/api/answers with body {"id": <that id>, "password": "<ADMIN_PASSWORD>"}
-         -> expect 200 {ok:true, id}. Then GET /daily-debug/api/feed and confirm that answer id is GONE.
-      3) DELETE with WRONG password {"id": <some id>, "password": "wrongpw"} -> expect 401 "Incorrect admin password".
-      4) DELETE with correct password but non-integer id {"id":"abc","password":<ADMIN_PASSWORD>} -> expect 400.
-      5) DELETE with missing password {"id": <id>} -> expect 401.
-      Also quickly re-verify POST /daily-debug/api/answers still creates answers (201) and GET feed works.
+      Scenarios:
+      1) SETUP: GET /daily-debug/api/daily-question for today's question_id, then POST 2-3 answers to
+         /daily-debug/api/answers so the feed is non-empty.
+      2) BULK CLEAR SUCCESS: DELETE /daily-debug/api/answers with body {"all": true, "password": "<ADMIN_PASSWORD>"}
+         -> expect 200 {ok:true, cleared:true}. Then GET /daily-debug/api/feed -> expect an EMPTY answers array.
+      3) BULK CLEAR WRONG PASSWORD: DELETE with {"all": true, "password": "wrong"} -> expect 401.
+      4) Regression: single delete still works — POST an answer, then DELETE {"id": <id>, "password": "<ADMIN_PASSWORD>"} -> 200 and gone from feed.
+      Report actual status + body for each.
     -agent: "testing"
     -message: |
       ✅ ALL BACKEND TESTS PASSED (12/12)
@@ -269,5 +280,43 @@ agent_communication:
       - All HTTP status codes match specification (200, 400, 401)
       - Error messages are clear and appropriate
       - No regression issues - existing endpoints unaffected
+      
+      All backend functionality is working perfectly. No issues found.
+    -agent: "testing"
+    -message: |
+      ✅ BULK CLEAR CAPABILITY TESTS COMPLETED - ALL PASSED (4/4)
+      
+      Tested NEW bulk clear feature on DELETE /daily-debug/api/answers endpoint:
+      
+      SETUP:
+      - Retrieved today's question (ID=10, Prompt='What is one thing that always makes you smile?')
+      - Posted 3 test answers (IDs: 264, 265, 266) - all returned HTTP 201
+      
+      TEST RESULTS:
+      1. ✅ BULK CLEAR SUCCESS (Correct Password)
+         - Request: DELETE {"all": true, "password": "!shine68PIECE"}
+         - Response: HTTP 200 {"ok": true, "cleared": true}
+         - Verification: GET /feed?limit=200 returned 0 answers (feed EMPTY as expected)
+      
+      2. ✅ BULK CLEAR WRONG PASSWORD
+         - Setup: Posted test answer (ID=267)
+         - Request: DELETE {"all": true, "password": "wrong-pw"}
+         - Response: HTTP 401 {"error": "Incorrect admin password."}
+         - Verification: Answer ID=267 still present in feed (not deleted)
+      
+      3. ✅ REGRESSION - Single Delete Still Works
+         - Setup: Posted test answer (ID=268)
+         - Request: DELETE {"id": 268, "password": "!shine68PIECE"}
+         - Response: HTTP 200 {"ok": true, "id": 268}
+         - Verification: Answer ID=268 removed from feed
+      
+      CRITICAL NOTES:
+      - Bulk clear feature working perfectly with proper authentication
+      - Password validation happens BEFORE deletion (security best practice)
+      - Wrong password correctly returns 401 and does NOT delete anything
+      - Single delete functionality preserved (no regression)
+      - All HTTP status codes correct (200, 401)
+      - Response structure matches specification
+      - basePath "/daily-debug" correctly used for all routes
       
       All backend functionality is working perfectly. No issues found.

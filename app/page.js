@@ -14,7 +14,9 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { Sparkles, Send, Users, ExternalLink, Loader2, RefreshCw, Trash2 } from 'lucide-react'
+import { Sparkles, Send, Users, ExternalLink, Loader2, RefreshCw, Trash2, Eraser } from 'lucide-react'
+import { Toaster } from '@/components/ui/sonner'
+import { toast } from 'sonner'
 
 // App base path (must match next.config.js basePath). Client fetches include it.
 const BASE_PATH = '/daily-debug'
@@ -66,6 +68,10 @@ export default function App() {
   const [adminPw, setAdminPw] = useState('')
   const [deleteErr, setDeleteErr] = useState('')
   const [deleting, setDeleting] = useState(false)
+  const [showClear, setShowClear] = useState(false)
+  const [clearPw, setClearPw] = useState('')
+  const [clearErr, setClearErr] = useState('')
+  const [clearing, setClearing] = useState(false)
   const feedRef = useRef(null)
 
   function closeDelete() {
@@ -88,10 +94,34 @@ export default function App() {
       if (!r.ok) { setDeleteErr(b.error || 'Delete failed.'); return }
       setAnswers((prev) => prev.filter((x) => x.id !== deleteTarget))
       closeDelete()
+      toast.success('Answer deleted')
     } catch (err) {
       setDeleteErr('Network error. Please try again.')
     } finally {
       setDeleting(false)
+    }
+  }
+
+  async function confirmClearAll(e) {
+    if (e) e.preventDefault()
+    setClearErr('')
+    setClearing(true)
+    try {
+      const r = await fetch(`${BASE_PATH}/api/answers`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ all: true, password: clearPw }),
+      })
+      const b = await r.json()
+      if (!r.ok) { setClearErr(b.error || 'Failed to clear answers.'); return }
+      setAnswers([])
+      setShowClear(false)
+      setClearPw('')
+      toast.success('All answers cleared')
+    } catch (err) {
+      setClearErr('Network error. Please try again.')
+    } finally {
+      setClearing(false)
     }
   }
 
@@ -237,12 +267,21 @@ export default function App() {
         <div>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-900">Everyone’s answers</h2>
-            <button
-              onClick={loadFeed}
-              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-slate-900"
-            >
-              <RefreshCw className="h-3.5 w-3.5" /> Refresh
-            </button>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => { setClearErr(''); setClearPw(''); setShowClear(true) }}
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-rose-600"
+                title="Admin: clear all answers"
+              >
+                <Eraser className="h-3.5 w-3.5" /> Clear all
+              </button>
+              <button
+                onClick={loadFeed}
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-slate-900"
+              >
+                <RefreshCw className="h-3.5 w-3.5" /> Refresh
+              </button>
+            </div>
           </div>
 
           <div ref={feedRef} className="space-y-3">
@@ -343,6 +382,40 @@ export default function App() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Admin: clear ALL answers dialog */}
+      <Dialog open={showClear} onOpenChange={(o) => { if (!o) { setShowClear(false); setClearPw(''); setClearErr('') } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eraser className="h-5 w-5 text-rose-600" /> Clear ALL answers?
+            </DialogTitle>
+            <DialogDescription>
+              This permanently deletes every answer currently on the wall. Enter the admin password to confirm.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={confirmClearAll} className="space-y-3 py-2">
+            <Input
+              type="password"
+              value={clearPw}
+              onChange={(e) => setClearPw(e.target.value)}
+              placeholder="Admin password"
+              autoFocus
+            />
+            {clearErr && <p className="text-sm text-rose-600">{clearErr}</p>}
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => { setShowClear(false); setClearPw('') }}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="destructive" disabled={clearing || !clearPw}>
+                {clearing ? 'Clearing…' : 'Clear all answers'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Toaster richColors position="top-center" />
     </div>
   )
 }
