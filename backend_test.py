@@ -1,458 +1,372 @@
 #!/usr/bin/env python3
 """
-Backend API tests for Daily Warmup application
-Tests all three endpoints with various scenarios
+Backend API Test Suite for The Daily Debug
+Tests the new BULK CLEAR capability on DELETE /api/answers endpoint
 """
+
 import requests
 import json
 import os
 from dotenv import load_dotenv
 
 # Load environment variables
-load_dotenv()
+load_dotenv('/app/.env')
 
 BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://question-of-day-3.preview.emergentagent.com')
-API_BASE = f"{BASE_URL}/api"
+ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', '!shine68PIECE')
+BASE_PATH = '/daily-debug'
 
-print(f"Testing backend at: {API_BASE}\n")
+# API endpoints
+API_BASE = f"{BASE_URL}{BASE_PATH}/api"
+DAILY_QUESTION_URL = f"{API_BASE}/daily-question"
+ANSWERS_URL = f"{API_BASE}/answers"
+FEED_URL = f"{API_BASE}/feed"
+
+print("=" * 80)
+print("BACKEND API TEST SUITE - BULK CLEAR CAPABILITY")
+print("=" * 80)
+print(f"Base URL: {BASE_URL}")
+print(f"Base Path: {BASE_PATH}")
+print(f"API Base: {API_BASE}")
+print(f"Admin Password: {'*' * len(ADMIN_PASSWORD)}")
 print("=" * 80)
 
-# Track test results
-test_results = {
-    'passed': 0,
-    'failed': 0,
-    'errors': []
-}
-
-def log_test(name, passed, details=""):
-    """Log test result"""
-    status = "✅ PASS" if passed else "❌ FAIL"
-    print(f"{status}: {name}")
-    if details:
-        print(f"  Details: {details}")
-    if passed:
-        test_results['passed'] += 1
-    else:
-        test_results['failed'] += 1
-        test_results['errors'].append(f"{name}: {details}")
-    print()
-
-# ============================================================================
-# TEST 1: GET /api/daily-question - Call twice, verify same question_id
-# ============================================================================
-print("\n" + "=" * 80)
-print("TEST 1: GET /api/daily-question - Stability check (same question_id)")
-print("=" * 80)
-
-try:
-    # First call
-    response1 = requests.get(f"{API_BASE}/daily-question", timeout=10)
-    print(f"First call - Status: {response1.status_code}")
-    print(f"Response: {response1.text[:500]}")
+def test_setup():
+    """Setup: Get today's question and post 3 test answers"""
+    print("\n[SETUP] Getting today's question and posting 3 test answers...")
     
-    if response1.status_code != 200:
-        log_test("GET /api/daily-question (first call)", False, 
-                f"Expected 200, got {response1.status_code}")
-    else:
-        data1 = response1.json()
-        daily_q1 = data1.get('dailyQuestion')
+    # Get today's question
+    try:
+        response = requests.get(DAILY_QUESTION_URL)
+        print(f"GET {DAILY_QUESTION_URL}")
+        print(f"Status: {response.status_code}")
         
-        if not daily_q1:
-            log_test("GET /api/daily-question (first call)", False, 
-                    "dailyQuestion is null or missing")
-        elif 'question_id' not in daily_q1:
-            log_test("GET /api/daily-question (first call)", False, 
-                    "question_id missing from dailyQuestion")
-        elif 'questions' not in daily_q1 or not daily_q1['questions']:
-            log_test("GET /api/daily-question (first call)", False, 
-                    "questions nested object missing or null")
-        elif 'prompt' not in daily_q1['questions']:
-            log_test("GET /api/daily-question (first call)", False, 
-                    "prompt missing from questions object")
-        else:
-            question_id_1 = daily_q1['question_id']
-            prompt_1 = daily_q1['questions']['prompt']
-            log_test("GET /api/daily-question (first call)", True, 
-                    f"question_id={question_id_1}, prompt='{prompt_1[:50]}...'")
+        if response.status_code != 200:
+            print(f"❌ SETUP FAILED: Expected 200, got {response.status_code}")
+            print(f"Response: {response.text}")
+            return None
+        
+        data = response.json()
+        question_id = data.get('dailyQuestion', {}).get('question_id')
+        question_prompt = data.get('dailyQuestion', {}).get('questions', {}).get('prompt')
+        
+        if not question_id:
+            print(f"❌ SETUP FAILED: No question_id in response")
+            print(f"Response: {json.dumps(data, indent=2)}")
+            return None
+        
+        print(f"✅ Got today's question: ID={question_id}, Prompt='{question_prompt}'")
+        
+    except Exception as e:
+        print(f"❌ SETUP FAILED: Error getting daily question: {e}")
+        return None
+    
+    # Post 3 test answers
+    posted_ids = []
+    for i in range(1, 4):
+        try:
+            payload = {
+                "questionId": question_id,
+                "answer": f"Bulk clear test answer {i} - This is a test answer for testing the bulk clear functionality.",
+                "displayName": f"TestUser{i}"
+            }
+            response = requests.post(ANSWERS_URL, json=payload)
+            print(f"\nPOST {ANSWERS_URL}")
+            print(f"Payload: {json.dumps(payload, indent=2)}")
+            print(f"Status: {response.status_code}")
             
-            # Second call
-            response2 = requests.get(f"{API_BASE}/daily-question", timeout=10)
-            print(f"Second call - Status: {response2.status_code}")
-            print(f"Response: {response2.text[:500]}")
-            
-            if response2.status_code != 200:
-                log_test("GET /api/daily-question (second call)", False, 
-                        f"Expected 200, got {response2.status_code}")
+            if response.status_code != 201:
+                print(f"❌ SETUP WARNING: Expected 201, got {response.status_code}")
+                print(f"Response: {response.text}")
             else:
-                data2 = response2.json()
-                daily_q2 = data2.get('dailyQuestion')
+                data = response.json()
+                answer_id = data.get('answer', {}).get('id')
+                posted_ids.append(answer_id)
+                print(f"✅ Posted answer {i}: ID={answer_id}")
                 
-                if not daily_q2 or 'question_id' not in daily_q2:
-                    log_test("GET /api/daily-question (second call)", False, 
-                            "dailyQuestion or question_id missing")
-                else:
-                    question_id_2 = daily_q2['question_id']
-                    
-                    if question_id_1 == question_id_2:
-                        log_test("GET /api/daily-question (stability)", True, 
-                                f"Both calls returned same question_id: {question_id_1}")
-                        # Save for later tests
-                        TODAY_QUESTION_ID = question_id_1
-                    else:
-                        log_test("GET /api/daily-question (stability)", False, 
-                                f"question_id changed: {question_id_1} -> {question_id_2}")
-                        TODAY_QUESTION_ID = question_id_1  # Use first one anyway
+        except Exception as e:
+            print(f"❌ SETUP WARNING: Error posting answer {i}: {e}")
+    
+    print(f"\n✅ SETUP COMPLETE: Posted {len(posted_ids)} answers")
+    return question_id
 
-except Exception as e:
-    log_test("GET /api/daily-question", False, f"Exception: {str(e)}")
-    TODAY_QUESTION_ID = None
-
-# ============================================================================
-# TEST 2: POST /api/answers - Valid submission
-# ============================================================================
-print("\n" + "=" * 80)
-print("TEST 2: POST /api/answers - Valid submission")
-print("=" * 80)
-
-if TODAY_QUESTION_ID is None:
-    log_test("POST /api/answers (valid)", False, 
-            "Skipped - no question_id from previous test")
-else:
+def test_bulk_clear_success():
+    """Test 1: Bulk clear with correct password should clear all answers"""
+    print("\n" + "=" * 80)
+    print("[TEST 1] BULK CLEAR SUCCESS - Correct Password")
+    print("=" * 80)
+    
     try:
         payload = {
-            "questionId": TODAY_QUESTION_ID,
-            "answer": "This is a test answer for the daily warmup question. I'm testing the backend API.",
-            "displayName": "Alex"
+            "all": True,
+            "password": ADMIN_PASSWORD
         }
         
-        response = requests.post(f"{API_BASE}/answers", json=payload, timeout=10)
+        print(f"\nDELETE {ANSWERS_URL}")
+        print(f"Payload: {json.dumps({'all': True, 'password': '***'}, indent=2)}")
+        
+        response = requests.delete(ANSWERS_URL, json=payload)
         print(f"Status: {response.status_code}")
-        print(f"Response: {response.text[:500]}")
+        print(f"Response: {response.text}")
+        
+        if response.status_code != 200:
+            print(f"❌ TEST 1 FAILED: Expected 200, got {response.status_code}")
+            return False
+        
+        data = response.json()
+        if not data.get('ok') or not data.get('cleared'):
+            print(f"❌ TEST 1 FAILED: Expected {{ok: true, cleared: true}}, got {json.dumps(data)}")
+            return False
+        
+        print(f"✅ Bulk clear returned correct response: {json.dumps(data)}")
+        
+        # Verify feed is empty
+        print(f"\nVerifying feed is empty...")
+        print(f"GET {FEED_URL}?limit=200")
+        
+        feed_response = requests.get(f"{FEED_URL}?limit=200")
+        print(f"Status: {feed_response.status_code}")
+        
+        if feed_response.status_code != 200:
+            print(f"❌ TEST 1 FAILED: Feed check failed with status {feed_response.status_code}")
+            return False
+        
+        feed_data = feed_response.json()
+        answers = feed_data.get('answers', [])
+        print(f"Feed contains {len(answers)} answers")
+        
+        if len(answers) != 0:
+            print(f"❌ TEST 1 FAILED: Expected empty feed, but found {len(answers)} answers")
+            print(f"Answers: {json.dumps(answers, indent=2)}")
+            return False
+        
+        print(f"✅ Feed is empty as expected")
+        print("\n✅ TEST 1 PASSED: Bulk clear with correct password works correctly")
+        return True
+        
+    except Exception as e:
+        print(f"❌ TEST 1 FAILED: Exception occurred: {e}")
+        return False
+
+def test_bulk_clear_wrong_password(question_id):
+    """Test 2: Bulk clear with wrong password should return 401 and not clear anything"""
+    print("\n" + "=" * 80)
+    print("[TEST 2] BULK CLEAR WRONG PASSWORD - Should Return 401")
+    print("=" * 80)
+    
+    # First, post one answer to have something in the feed
+    try:
+        payload = {
+            "questionId": question_id,
+            "answer": "Test answer for wrong password scenario - should NOT be deleted",
+            "displayName": "PasswordTestUser"
+        }
+        
+        print(f"\nPosting test answer first...")
+        print(f"POST {ANSWERS_URL}")
+        response = requests.post(ANSWERS_URL, json=payload)
+        print(f"Status: {response.status_code}")
         
         if response.status_code != 201:
-            log_test("POST /api/answers (valid)", False, 
-                    f"Expected 201, got {response.status_code}. Response: {response.text}")
-        else:
-            data = response.json()
-            answer_obj = data.get('answer')
-            
-            if not answer_obj:
-                log_test("POST /api/answers (valid)", False, 
-                        "No 'answer' object in response")
-            elif answer_obj.get('question_id') != TODAY_QUESTION_ID:
-                log_test("POST /api/answers (valid)", False, 
-                        f"question_id mismatch: expected {TODAY_QUESTION_ID}, got {answer_obj.get('question_id')}")
-            elif answer_obj.get('answer') != payload['answer']:
-                log_test("POST /api/answers (valid)", False, 
-                        "Answer text doesn't match")
-            elif answer_obj.get('display_name') != payload['displayName']:
-                log_test("POST /api/answers (valid)", False, 
-                        "display_name doesn't match")
-            else:
-                log_test("POST /api/answers (valid)", True, 
-                        f"Created answer with id={answer_obj.get('id')}")
-                CREATED_ANSWER_ID = answer_obj.get('id')
-                
-    except Exception as e:
-        log_test("POST /api/answers (valid)", False, f"Exception: {str(e)}")
-        CREATED_ANSWER_ID = None
-
-# ============================================================================
-# TEST 3: GET /api/feed - Verify answer appears at top
-# ============================================================================
-print("\n" + "=" * 80)
-print("TEST 3: GET /api/feed - Verify posted answer appears at top")
-print("=" * 80)
-
-try:
-    response = requests.get(f"{API_BASE}/feed?limit=200", timeout=10)
-    print(f"Status: {response.status_code}")
-    print(f"Response preview: {response.text[:300]}")
-    
-    if response.status_code != 200:
-        log_test("GET /api/feed", False, 
-                f"Expected 200, got {response.status_code}")
-    else:
+            print(f"❌ TEST 2 SETUP FAILED: Could not post test answer")
+            return False
+        
         data = response.json()
-        answers = data.get('answers', [])
+        answer_id = data.get('answer', {}).get('id')
+        print(f"✅ Posted test answer: ID={answer_id}")
         
-        if not isinstance(answers, list):
-            log_test("GET /api/feed", False, 
-                    "answers is not a list")
-        elif len(answers) == 0:
-            log_test("GET /api/feed", False, 
-                    "No answers in feed (expected at least the one we just posted)")
-        else:
-            # Check if our answer is at the top
-            top_answer = answers[0]
-            if 'CREATED_ANSWER_ID' in globals() and CREATED_ANSWER_ID:
-                if top_answer.get('id') == CREATED_ANSWER_ID:
-                    log_test("GET /api/feed", True, 
-                            f"Posted answer appears at top (id={CREATED_ANSWER_ID})")
-                else:
-                    # It might not be at the very top if other tests ran, but should be recent
-                    found = any(a.get('id') == CREATED_ANSWER_ID for a in answers[:10])
-                    if found:
-                        log_test("GET /api/feed", True, 
-                                f"Posted answer found in top 10 (id={CREATED_ANSWER_ID})")
-                    else:
-                        log_test("GET /api/feed", False, 
-                                f"Posted answer not found in top 10 results")
-            else:
-                log_test("GET /api/feed", True, 
-                        f"Feed returned {len(answers)} answers")
-                
-except Exception as e:
-    log_test("GET /api/feed", False, f"Exception: {str(e)}")
-
-# ============================================================================
-# TEST 4: Validation tests - expect 400 errors
-# ============================================================================
-print("\n" + "=" * 80)
-print("TEST 4: Validation tests (expect 400 errors)")
-print("=" * 80)
-
-if TODAY_QUESTION_ID is None:
-    print("Skipping validation tests - no question_id available")
-else:
-    # 4a: Empty answer
-    try:
-        payload = {
-            "questionId": TODAY_QUESTION_ID,
-            "answer": "   ",  # whitespace only
-            "displayName": "TestUser"
-        }
-        response = requests.post(f"{API_BASE}/answers", json=payload, timeout=10)
-        print(f"4a. Empty answer - Status: {response.status_code}")
-        print(f"Response: {response.text}")
-        
-        if response.status_code == 400:
-            log_test("Validation: empty answer", True, 
-                    f"Correctly rejected with 400: {response.json().get('error', '')}")
-        else:
-            log_test("Validation: empty answer", False, 
-                    f"Expected 400, got {response.status_code}")
     except Exception as e:
-        log_test("Validation: empty answer", False, f"Exception: {str(e)}")
+        print(f"❌ TEST 2 SETUP FAILED: {e}")
+        return False
     
-    # 4b: Answer > 2000 chars
+    # Now try bulk clear with wrong password
     try:
         payload = {
-            "questionId": TODAY_QUESTION_ID,
-            "answer": "A" * 2001,  # 2001 characters
-            "displayName": "TestUser"
+            "all": True,
+            "password": "wrong-pw"
         }
-        response = requests.post(f"{API_BASE}/answers", json=payload, timeout=10)
-        print(f"4b. Long answer - Status: {response.status_code}")
-        print(f"Response: {response.text}")
         
-        if response.status_code == 400:
-            log_test("Validation: answer > 2000 chars", True, 
-                    f"Correctly rejected with 400: {response.json().get('error', '')}")
-        else:
-            log_test("Validation: answer > 2000 chars", False, 
-                    f"Expected 400, got {response.status_code}")
-    except Exception as e:
-        log_test("Validation: answer > 2000 chars", False, f"Exception: {str(e)}")
-    
-    # 4c: Missing questionId
-    try:
-        payload = {
-            "answer": "Valid answer",
-            "displayName": "TestUser"
-        }
-        response = requests.post(f"{API_BASE}/answers", json=payload, timeout=10)
-        print(f"4c. Missing questionId - Status: {response.status_code}")
-        print(f"Response: {response.text}")
+        print(f"\nAttempting bulk clear with wrong password...")
+        print(f"DELETE {ANSWERS_URL}")
+        print(f"Payload: {json.dumps({'all': True, 'password': 'wrong-pw'}, indent=2)}")
         
-        if response.status_code == 400:
-            log_test("Validation: missing questionId", True, 
-                    f"Correctly rejected with 400: {response.json().get('error', '')}")
-        else:
-            log_test("Validation: missing questionId", False, 
-                    f"Expected 400, got {response.status_code}")
-    except Exception as e:
-        log_test("Validation: missing questionId", False, f"Exception: {str(e)}")
-    
-    # 4d: Non-integer questionId
-    try:
-        payload = {
-            "questionId": "not-a-number",
-            "answer": "Valid answer",
-            "displayName": "TestUser"
-        }
-        response = requests.post(f"{API_BASE}/answers", json=payload, timeout=10)
-        print(f"4d. Non-integer questionId - Status: {response.status_code}")
-        print(f"Response: {response.text}")
-        
-        if response.status_code == 400:
-            log_test("Validation: non-integer questionId", True, 
-                    f"Correctly rejected with 400: {response.json().get('error', '')}")
-        else:
-            log_test("Validation: non-integer questionId", False, 
-                    f"Expected 400, got {response.status_code}")
-    except Exception as e:
-        log_test("Validation: non-integer questionId", False, f"Exception: {str(e)}")
-
-# ============================================================================
-# TEST 5: Wrong question - questionId not today's question
-# ============================================================================
-print("\n" + "=" * 80)
-print("TEST 5: Wrong question test")
-print("=" * 80)
-
-if TODAY_QUESTION_ID is None:
-    print("Skipping wrong question test - no question_id available")
-else:
-    try:
-        wrong_id = TODAY_QUESTION_ID + 9999
-        payload = {
-            "questionId": wrong_id,
-            "answer": "This is a valid answer but for the wrong question",
-            "displayName": "TestUser"
-        }
-        response = requests.post(f"{API_BASE}/answers", json=payload, timeout=10)
+        response = requests.delete(ANSWERS_URL, json=payload)
         print(f"Status: {response.status_code}")
         print(f"Response: {response.text}")
         
-        if response.status_code == 400:
-            error_msg = response.json().get('error', '').lower()
-            if 'today' in error_msg or 'question' in error_msg:
-                log_test("Wrong question validation", True, 
-                        f"Correctly rejected with 400: {response.json().get('error', '')}")
-            else:
-                log_test("Wrong question validation", False, 
-                        f"Got 400 but error message unclear: {response.json().get('error', '')}")
-        else:
-            log_test("Wrong question validation", False, 
-                    f"Expected 400, got {response.status_code}")
-    except Exception as e:
-        log_test("Wrong question validation", False, f"Exception: {str(e)}")
-
-# ============================================================================
-# TEST 6: Profanity filter
-# ============================================================================
-print("\n" + "=" * 80)
-print("TEST 6: Profanity/appropriateness filter")
-print("=" * 80)
-
-if TODAY_QUESTION_ID is None:
-    print("Skipping profanity test - no question_id available")
-else:
-    # 6a: Inappropriate displayName
-    try:
-        payload = {
-            "questionId": TODAY_QUESTION_ID,
-            "answer": "This is a perfectly valid answer",
-            "displayName": "shithead"
-        }
-        response = requests.post(f"{API_BASE}/answers", json=payload, timeout=10)
-        print(f"6a. Inappropriate name - Status: {response.status_code}")
-        print(f"Response: {response.text}")
+        if response.status_code != 401:
+            print(f"❌ TEST 2 FAILED: Expected 401, got {response.status_code}")
+            return False
         
-        if response.status_code == 400:
-            error_msg = response.json().get('error', '').lower()
-            if 'appropriate' in error_msg or 'display name' in error_msg or 'name' in error_msg:
-                log_test("Profanity filter: inappropriate name", True, 
-                        f"Correctly rejected with 400: {response.json().get('error', '')}")
-            else:
-                log_test("Profanity filter: inappropriate name", False, 
-                        f"Got 400 but error message unclear: {response.json().get('error', '')}")
-        else:
-            log_test("Profanity filter: inappropriate name", False, 
-                    f"Expected 400, got {response.status_code}")
+        data = response.json()
+        if 'error' not in data:
+            print(f"❌ TEST 2 FAILED: Expected error message in response")
+            return False
+        
+        print(f"✅ Correctly returned 401 with error: {data.get('error')}")
+        
+        # Verify the answer is still present
+        print(f"\nVerifying answer is still present in feed...")
+        print(f"GET {FEED_URL}?limit=200")
+        
+        feed_response = requests.get(f"{FEED_URL}?limit=200")
+        print(f"Status: {feed_response.status_code}")
+        
+        if feed_response.status_code != 200:
+            print(f"❌ TEST 2 FAILED: Feed check failed")
+            return False
+        
+        feed_data = feed_response.json()
+        answers = feed_data.get('answers', [])
+        print(f"Feed contains {len(answers)} answers")
+        
+        if len(answers) == 0:
+            print(f"❌ TEST 2 FAILED: Answer was deleted despite wrong password!")
+            return False
+        
+        # Check if our specific answer is present
+        found = any(a.get('id') == answer_id for a in answers)
+        if not found:
+            print(f"❌ TEST 2 FAILED: Our test answer (ID={answer_id}) not found in feed")
+            return False
+        
+        print(f"✅ Answer still present in feed (ID={answer_id})")
+        print("\n✅ TEST 2 PASSED: Bulk clear with wrong password correctly rejected")
+        return True
+        
     except Exception as e:
-        log_test("Profanity filter: inappropriate name", False, f"Exception: {str(e)}")
+        print(f"❌ TEST 2 FAILED: Exception occurred: {e}")
+        return False
+
+def test_regression_single_delete(question_id):
+    """Test 3: Regression - Single delete should still work"""
+    print("\n" + "=" * 80)
+    print("[TEST 3] REGRESSION - Single Delete Still Works")
+    print("=" * 80)
     
-    # 6b: Clean displayName should work
+    # Post a test answer
     try:
         payload = {
-            "questionId": TODAY_QUESTION_ID,
-            "answer": "This is another test answer with a clean name",
-            "displayName": "Sam"
+            "questionId": question_id,
+            "answer": "Test answer for single delete regression test",
+            "displayName": "RegressionTestUser"
         }
-        response = requests.post(f"{API_BASE}/answers", json=payload, timeout=10)
-        print(f"6b. Clean name - Status: {response.status_code}")
-        print(f"Response: {response.text[:300]}")
         
-        if response.status_code == 201:
-            log_test("Profanity filter: clean name accepted", True, 
-                    f"Clean name 'Sam' correctly accepted")
-        else:
-            log_test("Profanity filter: clean name accepted", False, 
-                    f"Expected 201, got {response.status_code}. Response: {response.text}")
+        print(f"\nPosting test answer...")
+        print(f"POST {ANSWERS_URL}")
+        response = requests.post(ANSWERS_URL, json=payload)
+        print(f"Status: {response.status_code}")
+        
+        if response.status_code != 201:
+            print(f"❌ TEST 3 SETUP FAILED: Could not post test answer")
+            return False
+        
+        data = response.json()
+        answer_id = data.get('answer', {}).get('id')
+        print(f"✅ Posted test answer: ID={answer_id}")
+        
     except Exception as e:
-        log_test("Profanity filter: clean name accepted", False, f"Exception: {str(e)}")
-
-# ============================================================================
-# TEST 7: Honeypot field
-# ============================================================================
-print("\n" + "=" * 80)
-print("TEST 7: Honeypot field test")
-print("=" * 80)
-
-if TODAY_QUESTION_ID is None:
-    print("Skipping honeypot test - no question_id available")
-else:
+        print(f"❌ TEST 3 SETUP FAILED: {e}")
+        return False
+    
+    # Delete the specific answer
     try:
-        # Get current feed count
-        feed_before = requests.get(f"{API_BASE}/feed?limit=200", timeout=10)
-        answers_before = feed_before.json().get('answers', [])
-        count_before = len(answers_before)
-        
-        # Submit with honeypot field
         payload = {
-            "questionId": TODAY_QUESTION_ID,
-            "answer": "bot answer",
-            "displayName": "Bot",
-            "website": "spam"  # Honeypot field
+            "id": answer_id,
+            "password": ADMIN_PASSWORD
         }
-        response = requests.post(f"{API_BASE}/answers", json=payload, timeout=10)
-        print(f"Honeypot submission - Status: {response.status_code}")
+        
+        print(f"\nDeleting specific answer...")
+        print(f"DELETE {ANSWERS_URL}")
+        print(f"Payload: {json.dumps({'id': answer_id, 'password': '***'}, indent=2)}")
+        
+        response = requests.delete(ANSWERS_URL, json=payload)
+        print(f"Status: {response.status_code}")
         print(f"Response: {response.text}")
         
-        # Should return 200 (ok) but not create answer
-        if response.status_code == 200:
-            # Check feed to verify no new answer
-            feed_after = requests.get(f"{API_BASE}/feed?limit=200", timeout=10)
-            answers_after = feed_after.json().get('answers', [])
-            count_after = len(answers_after)
-            
-            if count_after == count_before:
-                log_test("Honeypot: silently rejected", True, 
-                        f"Returned 200 but did not create answer (feed count unchanged: {count_before})")
-            else:
-                # Check if the bot answer actually appears
-                bot_answer_found = any(
-                    a.get('display_name') == 'Bot' and a.get('answer') == 'bot answer' 
-                    for a in answers_after[:5]
-                )
-                if bot_answer_found:
-                    log_test("Honeypot: silently rejected", False, 
-                            "Bot answer appears in feed - honeypot failed")
-                else:
-                    log_test("Honeypot: silently rejected", True, 
-                            f"Returned 200, feed count changed but bot answer not visible")
-        else:
-            log_test("Honeypot: silently rejected", False, 
-                    f"Expected 200, got {response.status_code}")
+        if response.status_code != 200:
+            print(f"❌ TEST 3 FAILED: Expected 200, got {response.status_code}")
+            return False
+        
+        data = response.json()
+        if not data.get('ok') or data.get('id') != answer_id:
+            print(f"❌ TEST 3 FAILED: Expected {{ok: true, id: {answer_id}}}, got {json.dumps(data)}")
+            return False
+        
+        print(f"✅ Single delete returned correct response: {json.dumps(data)}")
+        
+        # Verify the answer is gone from feed
+        print(f"\nVerifying answer is removed from feed...")
+        print(f"GET {FEED_URL}?limit=200")
+        
+        feed_response = requests.get(f"{FEED_URL}?limit=200")
+        print(f"Status: {feed_response.status_code}")
+        
+        if feed_response.status_code != 200:
+            print(f"❌ TEST 3 FAILED: Feed check failed")
+            return False
+        
+        feed_data = feed_response.json()
+        answers = feed_data.get('answers', [])
+        print(f"Feed contains {len(answers)} answers")
+        
+        # Check if our specific answer is NOT present
+        found = any(a.get('id') == answer_id for a in answers)
+        if found:
+            print(f"❌ TEST 3 FAILED: Answer (ID={answer_id}) still present in feed after deletion")
+            return False
+        
+        print(f"✅ Answer correctly removed from feed (ID={answer_id})")
+        print("\n✅ TEST 3 PASSED: Single delete regression test passed")
+        return True
+        
     except Exception as e:
-        log_test("Honeypot: silently rejected", False, f"Exception: {str(e)}")
+        print(f"❌ TEST 3 FAILED: Exception occurred: {e}")
+        return False
 
-# ============================================================================
-# SUMMARY
-# ============================================================================
-print("\n" + "=" * 80)
-print("TEST SUMMARY")
-print("=" * 80)
-print(f"Total Passed: {test_results['passed']}")
-print(f"Total Failed: {test_results['failed']}")
+def main():
+    """Run all tests"""
+    results = {
+        'setup': False,
+        'bulk_clear_success': False,
+        'bulk_clear_wrong_password': False,
+        'regression_single_delete': False
+    }
+    
+    # Setup
+    question_id = test_setup()
+    if question_id:
+        results['setup'] = True
+    else:
+        print("\n❌ SETUP FAILED - Cannot proceed with tests")
+        return results
+    
+    # Test 1: Bulk clear success
+    results['bulk_clear_success'] = test_bulk_clear_success()
+    
+    # Test 2: Bulk clear wrong password
+    results['bulk_clear_wrong_password'] = test_bulk_clear_wrong_password(question_id)
+    
+    # Test 3: Regression - single delete
+    results['regression_single_delete'] = test_regression_single_delete(question_id)
+    
+    # Summary
+    print("\n" + "=" * 80)
+    print("TEST SUMMARY")
+    print("=" * 80)
+    
+    total = len(results)
+    passed = sum(1 for v in results.values() if v)
+    
+    for test_name, passed_flag in results.items():
+        status = "✅ PASSED" if passed_flag else "❌ FAILED"
+        print(f"{test_name}: {status}")
+    
+    print("=" * 80)
+    print(f"TOTAL: {passed}/{total} tests passed")
+    print("=" * 80)
+    
+    return results
 
-if test_results['failed'] > 0:
-    print("\nFailed Tests:")
-    for error in test_results['errors']:
-        print(f"  - {error}")
-    exit(1)
-else:
-    print("\n✅ All tests passed!")
-    exit(0)
+if __name__ == "__main__":
+    main()

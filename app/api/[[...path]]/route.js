@@ -276,3 +276,47 @@ export async function POST(request) {
     return json({ error: error.message }, 500)
   }
 }
+
+// Admin-only: delete a single answer. Requires the correct ADMIN_PASSWORD.
+// The password is verified server-side and never exposed to the browser.
+export async function DELETE(request) {
+  const path = getApiPath(request)
+  if (path !== 'answers') return json({ error: 'Not found' }, 404)
+
+  let db
+  try {
+    db = supabaseAdmin()
+  } catch (e) {
+    return json({ error: e.message, needsSetup: true }, 500)
+  }
+
+  const ADMIN = process.env.ADMIN_PASSWORD
+  if (!ADMIN) return json({ error: 'Admin password is not configured on the server.' }, 500)
+
+  const body = await request.json().catch(() => null)
+  const password = typeof body?.password === 'string' ? body.password : ''
+  const id = Number(body?.id)
+
+  if (password !== ADMIN) return json({ error: 'Incorrect admin password.' }, 401)
+
+  // Bulk clear: delete ALL answers on demand.
+  if (body?.all === true) {
+    try {
+      const { error } = await db.from('answers').delete().neq('id', 0)
+      if (error) throw error
+      return json({ ok: true, cleared: true })
+    } catch (error) {
+      return json({ error: error.message }, 500)
+    }
+  }
+
+  if (!Number.isInteger(id)) return json({ error: 'Invalid answer id.' }, 400)
+
+  try {
+    const { error } = await db.from('answers').delete().eq('id', id)
+    if (error) throw error
+    return json({ ok: true, id })
+  } catch (error) {
+    return json({ error: error.message }, 500)
+  }
+}
