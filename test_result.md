@@ -152,11 +152,25 @@ backend:
         -working: true
         -agent: "testing"
         -comment: "✅ PASSED - All validation scenarios working correctly: (1) Valid submission returns 201 with answer object, (2) Empty/whitespace answer rejected with 400, (3) Answer >2000 chars rejected with 400, (4) Missing/non-integer questionId rejected with 400, (5) Wrong questionId (not today's) rejected with 400 and appropriate error message, (6) Profanity filter working - inappropriate displayName 'shithead' rejected with 400, clean name 'Sam' accepted with 201, (7) Honeypot field 'website' returns 200 but does NOT create visible answer in feed. All test cases passed."
+  - task: "DELETE /api/answers - admin-only single answer deletion with password authentication"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Admin-only DELETE endpoint requiring ADMIN_PASSWORD from server env. Validates password server-side, accepts {id, password} in request body. Returns 200 {ok:true, id} on success, 401 for wrong/missing password, 400 for invalid id."
+        -working: true
+        -agent: "testing"
+        -comment: "✅ PASSED - All DELETE endpoint scenarios tested successfully: (1) DELETE with correct password returns 200 {ok:true, id:261} and answer verified removed from feed, (2) DELETE with wrong password 'totally-wrong-password' correctly returns 401 with 'Incorrect admin password' error, (3) DELETE with non-integer id 'abc' correctly returns 400 with 'Invalid answer id' error, (4) DELETE with missing password correctly returns 401 with password error, (5) REGRESSION verified - POST /api/answers still creates answers (201) and GET /api/feed returns list correctly. All authentication, validation, and deletion logic working as expected."
 
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 2
+  test_sequence: 3
   run_ui: false
 
 test_plan:
@@ -168,16 +182,21 @@ test_plan:
 agent_communication:
     -agent: "main"
     -message: |
-      Supabase tables are created and the app is live. Please test the three backend endpoints via
-      the public base URL (use /api prefix). Key scenarios:
-      1) GET /api/daily-question twice -> must return a non-null dailyQuestion with the SAME question_id both times (stable for the day). Capture that question_id for the next tests.
-      2) POST /api/answers valid -> {questionId: <today's id>, answer:"Test answer", displayName:"Alex"} -> expect 201 with the created answer row.
-      3) GET /api/feed -> the just-posted answer should appear at the top.
-      4) Validation: empty answer -> 400; answer > 2000 chars -> 400; missing/invalid questionId -> 400.
-      5) Wrong question: POST with a questionId that is NOT today's -> expect 400 "not today's question".
-      6) Profanity filter: POST with displayName like "shithead" (inappropriate) but a valid answer -> expect 400 with an appropriate-name error. A clean name like "Sam" must pass.
-      7) Honeypot: POST including "website":"spam" -> should return ok without creating a visible answer.
-      Do NOT hardcode URLs; use the configured base URL + /api.
+      IMPORTANT: The app now uses a Next.js basePath of "/daily-debug", so ALL API routes are served
+      under /daily-debug/api/... (NOT /api/...). Use base URL from /app/.env NEXT_PUBLIC_BASE_URL and
+      hit e.g. {NEXT_PUBLIC_BASE_URL}/daily-debug/api/feed, /daily-debug/api/daily-question,
+      /daily-debug/api/answers. Do not hardcode URLs.
+
+      New feature to test: DELETE /api/answers (admin-only single-answer deletion). The admin password
+      is stored in the server env var ADMIN_PASSWORD (read it from /app/.env). Scenarios:
+      1) Setup: GET /daily-debug/api/daily-question to get today's question_id, then POST
+         /daily-debug/api/answers to create a test answer; capture its returned id.
+      2) DELETE /daily-debug/api/answers with body {"id": <that id>, "password": "<ADMIN_PASSWORD>"}
+         -> expect 200 {ok:true, id}. Then GET /daily-debug/api/feed and confirm that answer id is GONE.
+      3) DELETE with WRONG password {"id": <some id>, "password": "wrongpw"} -> expect 401 "Incorrect admin password".
+      4) DELETE with correct password but non-integer id {"id":"abc","password":<ADMIN_PASSWORD>} -> expect 400.
+      5) DELETE with missing password {"id": <id>} -> expect 401.
+      Also quickly re-verify POST /daily-debug/api/answers still creates answers (201) and GET feed works.
     -agent: "testing"
     -message: |
       ✅ ALL BACKEND TESTS PASSED (12/12)
@@ -208,3 +227,47 @@ agent_communication:
            * Does NOT create visible answer in feed
       
       No critical issues found. All backend functionality is working as expected.
+    -agent: "testing"
+    -message: |
+      ✅ DELETE ENDPOINT TESTS COMPLETED - ALL PASSED (5/5)
+      
+      Tested new admin-only DELETE /daily-debug/api/answers endpoint:
+      
+      SETUP:
+      - Successfully retrieved today's question (id: 10)
+      - Created test answer (id: 261) for deletion testing
+      
+      TEST RESULTS:
+      1. ✅ DELETE with correct password
+         - Request: {"id": 261, "password": "<ADMIN_PASSWORD>"}
+         - Response: HTTP 200 {"ok": true, "id": 261}
+         - Verification: Answer 261 confirmed removed from feed (GET /feed?limit=200)
+      
+      2. ✅ DELETE with wrong password
+         - Request: {"id": 262, "password": "totally-wrong-password"}
+         - Response: HTTP 401 {"error": "Incorrect admin password."}
+         - Correctly rejected unauthorized deletion attempt
+      
+      3. ✅ DELETE with invalid ID (non-integer)
+         - Request: {"id": "abc", "password": "<ADMIN_PASSWORD>"}
+         - Response: HTTP 400 {"error": "Invalid answer id."}
+         - Proper validation of id parameter
+      
+      4. ✅ DELETE with missing password
+         - Request: {"id": 12345} (no password field)
+         - Response: HTTP 401 {"error": "Incorrect admin password."}
+         - Correctly requires password authentication
+      
+      5. ✅ REGRESSION tests
+         - POST /daily-debug/api/answers: Still working (201, created id: 263)
+         - GET /daily-debug/api/feed: Still working (200, retrieved 2 answers)
+         - New answer appears in feed as expected
+      
+      CRITICAL NOTES:
+      - App correctly uses basePath "/daily-debug" - all routes under /daily-debug/api/...
+      - Admin password authentication working correctly (server-side validation)
+      - All HTTP status codes match specification (200, 400, 401)
+      - Error messages are clear and appropriate
+      - No regression issues - existing endpoints unaffected
+      
+      All backend functionality is working perfectly. No issues found.

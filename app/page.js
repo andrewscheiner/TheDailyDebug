@@ -14,7 +14,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { Sparkles, Send, Users, ExternalLink, Loader2, RefreshCw } from 'lucide-react'
+import { Sparkles, Send, Users, ExternalLink, Loader2, RefreshCw, Trash2 } from 'lucide-react'
 
 // App base path (must match next.config.js basePath). Client fetches include it.
 const BASE_PATH = '/daily-debug'
@@ -62,7 +62,38 @@ export default function App() {
   const [needsSetup, setNeedsSetup] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showDialog, setShowDialog] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [adminPw, setAdminPw] = useState('')
+  const [deleteErr, setDeleteErr] = useState('')
+  const [deleting, setDeleting] = useState(false)
   const feedRef = useRef(null)
+
+  function closeDelete() {
+    setDeleteTarget(null)
+    setAdminPw('')
+    setDeleteErr('')
+  }
+
+  async function confirmDelete(e) {
+    if (e) e.preventDefault()
+    setDeleteErr('')
+    setDeleting(true)
+    try {
+      const r = await fetch(`${BASE_PATH}/api/answers`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: deleteTarget, password: adminPw }),
+      })
+      const b = await r.json()
+      if (!r.ok) { setDeleteErr(b.error || 'Delete failed.'); return }
+      setAnswers((prev) => prev.filter((x) => x.id !== deleteTarget))
+      closeDelete()
+    } catch (err) {
+      setDeleteErr('Network error. Please try again.')
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const loadDaily = useCallback(async () => {
     try {
@@ -224,7 +255,7 @@ export default function App() {
             )}
             {answers.map((a) => (
               <Card key={a.id} className="transition hover:shadow-md">
-                <CardContent className="flex gap-3 py-4">
+                <CardContent className="flex items-start gap-3 py-4">
                   <div
                     className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white ${colorFor(a.display_name)}`}
                   >
@@ -237,6 +268,14 @@ export default function App() {
                     </div>
                     <p className="mt-1 whitespace-pre-wrap break-words text-slate-700">{a.answer}</p>
                   </div>
+                  <button
+                    onClick={() => { setDeleteErr(''); setAdminPw(''); setDeleteTarget(a.id) }}
+                    className="shrink-0 rounded-md p-1.5 text-muted-foreground/40 transition hover:bg-rose-50 hover:text-rose-600"
+                    aria-label="Delete answer"
+                    title="Delete answer (admin only)"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </CardContent>
               </Card>
             ))}
@@ -270,6 +309,38 @@ export default function App() {
               Stay here
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Admin delete-answer dialog */}
+      <Dialog open={deleteTarget !== null} onOpenChange={(o) => { if (!o) closeDelete() }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-rose-600" /> Delete this answer?
+            </DialogTitle>
+            <DialogDescription>
+              Enter the admin password to permanently delete this answer. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={confirmDelete} className="space-y-3 py-2">
+            <Input
+              type="password"
+              value={adminPw}
+              onChange={(e) => setAdminPw(e.target.value)}
+              placeholder="Admin password"
+              autoFocus
+            />
+            {deleteErr && <p className="text-sm text-rose-600">{deleteErr}</p>}
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={closeDelete}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="destructive" disabled={deleting || !adminPw}>
+                {deleting ? 'Deleting…' : 'Delete answer'}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
